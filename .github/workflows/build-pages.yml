@@ -36,13 +36,15 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Restore Scholar cache
+      - name: Restore paper data cache
         uses: actions/cache@v4
         with:
-          path: data/raw/scholar
-          key: scholar-cache-${{ github.run_id }}
+          path: |
+            data/raw/arxiv
+            data/raw/scholar
+          key: paper-data-${{ github.run_id }}
           restore-keys: |
-            scholar-cache-
+            paper-data-
 
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
@@ -50,8 +52,18 @@ jobs:
       - name: Check configuration
         run: python scripts/pipeline.py self-check
 
+      - name: Download last published snapshot
+        run: |
+          curl -fsSL --retry 3 \
+            https://ma-zilin.github.io/Paper-Leaderboard-For-Embodied-AI/data/papers.min.json \
+            --output /tmp/published-papers.json
+
       - name: Fetch arXiv and build initial outputs
-        run: python scripts/pipeline.py run
+        run: |
+          if ! python scripts/pipeline.py run; then
+            echo "arXiv is temporarily unavailable; using the last published paper snapshot."
+            python scripts/pipeline.py bootstrap-from-site /tmp/published-papers.json
+          fi
 
       - name: Fetch citation counts from Semantic Scholar
         env:

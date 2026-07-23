@@ -914,7 +914,8 @@ def fetch_semantic_scholar_citations(
 
         payload: list[dict[str, Any] | None] | None = None
         last_error: Exception | None = None
-        for attempt in range(1, 5):
+        for attempt in range(1, 6):
+            retry_after: str | None = None
             try:
                 with urllib.request.urlopen(request, timeout=45) as response:
                     decoded = json.loads(response.read().decode("utf-8"))
@@ -926,10 +927,12 @@ def fetch_semantic_scholar_citations(
                 last_error = exc
                 if exc.code not in {429, 500, 502, 503, 504}:
                     raise
+                retry_after = exc.headers.get("Retry-After")
             except (urllib.error.URLError, TimeoutError, RuntimeError) as exc:
                 last_error = exc
-            if attempt < 4:
-                time.sleep(10.0 * attempt)
+            if attempt < 5:
+                sleep_seconds = float(retry_after) if retry_after else min(120.0, 15.0 * attempt)
+                time.sleep(sleep_seconds)
 
         if payload is None:
             raise RuntimeError(f"Semantic Scholar citation request failed: {last_error}")
@@ -950,6 +953,8 @@ def fetch_semantic_scholar_citations(
         log_progress(
             f"[semantic-scholar] processed {min(start + batch_size, len(enriched))}/{len(enriched)} papers; found={found}"
         )
+        if start + batch_size < len(enriched):
+            time.sleep(3.0)
 
     if enriched and found == 0:
         raise RuntimeError("Semantic Scholar returned no citation data; refusing to publish an unranked leaderboard")
@@ -1225,6 +1230,50 @@ def refresh_semantic_scholar_citations_only() -> list[dict[str, Any]]:
     return papers
 
 
+def bootstrap_from_site_snapshot(snapshot_path: Path) -> list[dict[str, Any]]:
+    """Recreate minimal processed data from the last published frontend snapshot."""
+    ensure_dirs()
+    rows = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    if not isinstance(rows, list) or not rows:
+        raise RuntimeError(f"Published site snapshot is empty or invalid: {snapshot_path}")
+
+    current_time = now_utc()
+    papers: list[dict[str, Any]] = []
+    for row in rows:
+        published_date = str(row.get("published_date", "")).strip()
+        if not published_date:
+            continue
+        published_at = datetime.fromisoformat(published_date).replace(tzinfo=timezone.utc)
+        arxiv_id = str(row["arxiv_id"])
+        papers.append(
+            {
+                "arxiv_id": arxiv_id,
+                "title": str(row.get("title", "")),
+                "abstract": "",
+                "authors": [],
+                "categories": [],
+                "published_at": iso(published_at),
+                "published_date": published_date,
+                "published_year": published_at.year,
+                "age_days": max(0, (current_time - published_at).days),
+                "matched_queries": [],
+                "abs_url": row.get("abs_url") or f"https://arxiv.org/abs/{arxiv_id}",
+                "pdf_url": row.get("pdf_url") or f"https://arxiv.org/pdf/{arxiv_id}.pdf",
+                "cited_by_count": int(row.get("cited_by_count") or 0),
+                "citation_status": "published_snapshot",
+            }
+        )
+
+    if not papers:
+        raise RuntimeError(f"Published site snapshot contains no usable papers: {snapshot_path}")
+
+    scoring = load_yaml(CONFIG_DIR / "scoring.yaml")
+    papers = rank_papers(papers, scoring)
+    write_processed_outputs(papers)
+    log_progress(f"[snapshot] bootstrapped processed data for {len(papers)} papers")
+    return papers
+
+
 def rebuild_outputs_from_cache() -> list[dict[str, Any]]:
     ensure_dirs()
     config = {
@@ -1312,6 +1361,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "refresh-semantic-scholar",
         help="Fetch citation counts from Semantic Scholar's batch API and rebuild rankings.",
     )
+    snapshot_parser = subparsers.add_parser(
+        "bootstrap-from-site",
+        help="Recreate processed data from the last published papers.min.json snapshot.",
+    )
+    snapshot_parser.add_argument("snapshot", type=Path)
 
     fetch_parser = subparsers.add_parser("fetch-only", help="Fetch arXiv raw results only, without ranking or citation enrichment.")
     fetch_parser.add_argument("--years-back", type=int, default=None)
@@ -1372,6 +1426,11 @@ def main(argv: list[str]) -> int:
         if args.command == "refresh-semantic-scholar":
             papers = refresh_semantic_scholar_citations_only()
             print(f"refreshed Semantic Scholar citations for {len(papers)} papers")
+            finish_run_status("done", stage="done", output_papers=len(papers))
+            return 0
+        if args.command == "bootstrap-from-site":
+            papers = bootstrap_from_site_snapshot(args.snapshot)
+            print(f"bootstrapped {len(papers)} papers from published site snapshot")
             finish_run_status("done", stage="done", output_papers=len(papers))
             return 0
         if args.command == "rebuild-from-cache":
