@@ -1,10 +1,37 @@
 keywords:
-  - label: Example Keyword
+  - label: VLA
     aliases:
-      - example
-      - example keyword
-
-  - label: Example Method
+      - vision-language-action
+      - vision language action
+  - label: World Model
     aliases:
-      - example method
-      - method example
+      - world model
+      - world-action model
+      - world action model
+  - label: Imitation Learning
+    aliases:
+      - imitation learning
+      - behavior cloning
+  - label: Diffusion
+    aliases:
+      - diffusion policy
+      - diffusion
+  - label: Action Chunking
+    aliases:
+      - action chunking
+  - label: Cross-Embodiment
+    aliases:
+      - cross-embodiment
+      - cross embodiment
+  - label: Sim-to-Real
+    aliases:
+      - sim-to-real
+      - sim to real
+  - label: Benchmark
+    aliases:
+      - benchmark
+      - evaluation suite
+  - label: Dataset
+    aliases:
+      - dataset
+      - robot data

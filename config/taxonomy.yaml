@@ -1,19 +1,37 @@
-root_topic: example
+root_topic: embodied-ai
 
 topics:
-  example:
-    name: Example Field
-    description: Replace this with your own field description.
+  embodied-ai:
+    name: Embodied AI Paper Leaderboard
+    description: Robot learning, VLA, world models, benchmarks, and real-world deployment.
     children:
-      - subtopic-a
-      - subtopic-b
+      - policy-learning
+      - vla-generalist
+      - world-models
+      - data-benchmarks
+      - sim-to-real
 
-  subtopic-a:
-    name: Subtopic A
-    parent: example
-    description: Replace this with your own subtopic description.
+  policy-learning:
+    name: Imitation Learning & Policy Learning
+    parent: embodied-ai
+    description: Behavior cloning, action chunking, and generative robot policies.
 
-  subtopic-b:
-    name: Subtopic B
-    parent: example
-    description: Replace this with your own subtopic description.
+  vla-generalist:
+    name: VLA & Generalist Robot Policies
+    parent: embodied-ai
+    description: Vision-language-action models and generalist robot policies.
+
+  world-models:
+    name: World Models & Video-Action Models
+    parent: embodied-ai
+    description: Predictive representations for robot decision making and control.
+
+  data-benchmarks:
+    name: Data, Benchmarks & Evaluation
+    parent: embodied-ai
+    description: Robot datasets, evaluation suites, and cross-embodiment learning.
+
+  sim-to-real:
+    name: Sim-to-Real & Real-World Deployment
+    parent: embodied-ai
+    description: Simulation transfer, robustness, and deployment on physical robots.

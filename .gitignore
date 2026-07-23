@@ -8,3 +8,6 @@ logs/
 state/
 __pycache__/
 *.pyc
+data/processed/model_keywords/
+site/.nojekyll
+topics/*.md

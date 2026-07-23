@@ -1,0 +1,95 @@
+name: Build Paper Leaderboard
+
+on:
+  workflow_dispatch:
+  schedule:
+    # UTC 周六 23:00，即北京时间周日 07:00。
+    - cron: "0 23 * * 6"
+  push:
+    branches:
+      - main
+    paths:
+      - "config/**"
+      - "scripts/**"
+      - "site/**"
+      - ".github/workflows/build-pages.yml"
+      - "requirements.txt"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Restore Scholar cache
+        uses: actions/cache@v4
+        with:
+          path: data/raw/scholar
+          key: scholar-cache-${{ github.run_id }}
+          restore-keys: |
+            scholar-cache-
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Check configuration
+        run: python scripts/pipeline.py self-check
+
+      - name: Fetch arXiv and build initial outputs
+        run: python scripts/pipeline.py run
+
+      - name: Fetch missing citation counts when Serper is configured
+        env:
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
+        run: |
+          if [ -n "$SERPER_API_KEY" ]; then
+            python scripts/pipeline.py refresh-citations
+          else
+            echo "SERPER_API_KEY is not configured; publishing without citation enrichment."
+          fi
+
+      - name: Generate baseline keyword tags
+        run: |
+          python scripts/export_keywords.py
+          cp data/processed/model_keywords/paper_keywords.jsonl data/processed/model_keywords/keywords_latest.jsonl
+
+      - name: Build frontend data
+        run: python scripts/build_site_data.py
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

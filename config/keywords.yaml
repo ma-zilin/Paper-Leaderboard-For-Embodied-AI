@@ -1,25 +1,72 @@
 primary:
   strong_phrases:
-    - your domain phrase
-    - another key phrase
+    - robot learning
+    - robot manipulation
+    - vision-language-action
+    - embodied ai
   support_terms:
-    - example
-    - method
-    - system
+    - policy
+    - action
+    - manipulation
+    - robot
+    - embodiment
   exclude_terms:
-    - unrelated phrase
+    - autonomous driving
+    - aerial vehicle
+    - text-only agent
 
 subtopics:
-  subtopic-a:
+  policy-learning:
     strong_phrases:
-      - subtopic a
+      - imitation learning
+      - behavior cloning
+      - diffusion policy
+      - action chunking
     support_terms:
-      - example-a
+      - demonstration
+      - policy learning
     exclude_terms: []
 
-  subtopic-b:
+  vla-generalist:
     strong_phrases:
-      - subtopic b
+      - vision-language-action
+      - vision language action
+      - generalist robot policy
+      - robot foundation model
     support_terms:
-      - example-b
+      - language-conditioned
+      - multimodal
+    exclude_terms: []
+
+  world-models:
+    strong_phrases:
+      - world model
+      - world action model
+      - video prediction
+    support_terms:
+      - dynamics
+      - predictive model
+    exclude_terms:
+      - autonomous driving
+
+  data-benchmarks:
+    strong_phrases:
+      - robot learning dataset
+      - robot manipulation benchmark
+      - cross-embodiment
+    support_terms:
+      - evaluation
+      - benchmark
+      - dataset
+    exclude_terms: []
+
+  sim-to-real:
+    strong_phrases:
+      - sim-to-real
+      - domain randomization
+      - real-world deployment
+    support_terms:
+      - physical robot
+      - transfer
+      - robustness
     exclude_terms: []

@@ -1,17 +1,30 @@
 arxiv:
-  base_url: http://export.arxiv.org/api/query
-  categories: []
+  base_url: https://export.arxiv.org/api/query
+  categories:
+    - cs.RO
+    - cs.AI
+    - cs.LG
+    - cs.CV
   years_back: 2
   batch_size: 100
-  max_results_per_query: 0
+  max_results_per_query: 100
   pause_seconds: 4.0
   parallel_queries: 1
   sort_by: submittedDate
   sort_order: descending
   queries:
-    - id: example-core
-      text: '(all:"your domain phrase" OR all:"another key phrase")'
-      start_date: 2023-01-01
-    - id: example-method
-      text: '(all:"your method family" OR all:"another method family")'
-      start_date: 2023-01-01
+    - id: policy-learning
+      text: '((all:"imitation learning" OR all:"behavior cloning" OR all:"diffusion policy" OR all:"action chunking") AND (all:robot OR all:manipulation))'
+      start_date: 2024-01-01
+    - id: vla-generalist
+      text: '((all:"vision-language-action" OR all:"vision language action" OR all:"generalist robot policy" OR all:"robot foundation model") AND (all:robot OR all:manipulation))'
+      start_date: 2024-01-01
+    - id: world-models
+      text: '((all:"world model" OR all:"world action model" OR all:"video prediction") AND (all:robot OR all:"robot manipulation"))'
+      start_date: 2024-01-01
+    - id: data-benchmarks
+      text: '((all:"robot learning dataset" OR all:"robot manipulation benchmark" OR all:"cross-embodiment") AND (all:robot OR all:manipulation))'
+      start_date: 2024-01-01
+    - id: sim-to-real
+      text: '((all:"sim-to-real" OR all:"domain randomization" OR all:"real-world deployment") AND (all:robot OR all:manipulation))'
+      start_date: 2024-01-01
