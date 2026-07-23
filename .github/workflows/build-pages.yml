@@ -53,6 +53,11 @@ jobs:
       - name: Fetch arXiv and build initial outputs
         run: python scripts/pipeline.py run
 
+      - name: Fetch citation counts from Semantic Scholar
+        env:
+          S2_API_KEY: ${{ secrets.S2_API_KEY }}
+        run: python scripts/pipeline.py refresh-semantic-scholar
+
       - name: Fetch missing citation counts when Serper is configured
         env:
           SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}

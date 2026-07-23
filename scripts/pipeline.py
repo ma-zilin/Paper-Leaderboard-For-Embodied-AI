@@ -884,6 +884,78 @@ def enrich_with_scholar_fetch(papers: list[dict[str, Any]], parallel_requests: i
     return final_rows
 
 
+def fetch_semantic_scholar_citations(
+    papers: list[dict[str, Any]],
+    batch_size: int = 100,
+) -> list[dict[str, Any]]:
+    """Fetch citation counts by arXiv ID using Semantic Scholar's batch API."""
+    enriched = [dict(paper) for paper in papers]
+    api_key = os.getenv("S2_API_KEY", "").strip()
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "Paper-Leaderboard-For-Embodied-AI/1.0",
+    }
+    if api_key:
+        headers["x-api-key"] = api_key
+
+    found = 0
+    for start in range(0, len(enriched), batch_size):
+        batch = enriched[start : start + batch_size]
+        ids = [
+            f"ARXIV:{re.sub(r'v\d+$', '', paper['arxiv_id'], flags=re.IGNORECASE)}"
+            for paper in batch
+        ]
+        request = urllib.request.Request(
+            "https://api.semanticscholar.org/graph/v1/paper/batch?fields=title,citationCount,externalIds",
+            data=json.dumps({"ids": ids}).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+
+        payload: list[dict[str, Any] | None] | None = None
+        last_error: Exception | None = None
+        for attempt in range(1, 5):
+            try:
+                with urllib.request.urlopen(request, timeout=45) as response:
+                    decoded = json.loads(response.read().decode("utf-8"))
+                if not isinstance(decoded, list) or len(decoded) != len(batch):
+                    raise RuntimeError("Semantic Scholar returned an unexpected batch response")
+                payload = decoded
+                break
+            except urllib.error.HTTPError as exc:
+                last_error = exc
+                if exc.code not in {429, 500, 502, 503, 504}:
+                    raise
+            except (urllib.error.URLError, TimeoutError, RuntimeError) as exc:
+                last_error = exc
+            if attempt < 4:
+                time.sleep(10.0 * attempt)
+
+        if payload is None:
+            raise RuntimeError(f"Semantic Scholar citation request failed: {last_error}")
+
+        for paper, result in zip(batch, payload):
+            if not result or result.get("citationCount") is None:
+                paper["semantic_scholar_status"] = "missing"
+                continue
+            citation_count = max(0, int(result["citationCount"]))
+            paper["cited_by_count"] = citation_count
+            paper["scholar_cited_by_count"] = citation_count
+            paper["semantic_scholar_cited_by_count"] = citation_count
+            paper["semantic_scholar_paper_id"] = result.get("paperId", "")
+            paper["semantic_scholar_status"] = "found"
+            paper["citation_status"] = "semantic_scholar_found"
+            found += 1
+
+        log_progress(
+            f"[semantic-scholar] processed {min(start + batch_size, len(enriched))}/{len(enriched)} papers; found={found}"
+        )
+
+    if enriched and found == 0:
+        raise RuntimeError("Semantic Scholar returned no citation data; refusing to publish an unranked leaderboard")
+    return enriched
+
+
 def rank_papers(papers: list[dict[str, Any]], scoring_cfg: dict[str, Any]) -> list[dict[str, Any]]:
     decay_lambda = float(scoring_cfg["ranking"]["age_decay_lambda"])
     for paper in papers:
@@ -1130,6 +1202,29 @@ def refresh_citations_only() -> list[dict[str, Any]]:
     return papers
 
 
+def refresh_semantic_scholar_citations_only() -> list[dict[str, Any]]:
+    ensure_dirs()
+    scoring = load_yaml(CONFIG_DIR / "scoring.yaml")
+    papers = load_jsonl(DATA_PROCESSED / "papers.jsonl")
+    log_progress(f"[semantic-scholar] loaded papers={len(papers)}")
+    update_run_status(stage="enrich_semantic_scholar", loaded_papers=len(papers))
+    papers = fetch_semantic_scholar_citations(papers)
+    papers = rank_papers(papers, scoring)
+    write_processed_outputs(papers)
+    build_pages(
+        papers,
+        {
+            "taxonomy": load_yaml(CONFIG_DIR / "taxonomy.yaml"),
+            "queries": load_yaml(CONFIG_DIR / "queries.yaml"),
+            "keywords": load_yaml(CONFIG_DIR / "keywords.yaml"),
+            "scoring": scoring,
+        },
+    )
+    log_progress(f"[semantic-scholar] outputs written papers={len(papers)}")
+    update_run_status(stage="done", output_papers=len(papers))
+    return papers
+
+
 def rebuild_outputs_from_cache() -> list[dict[str, Any]]:
     ensure_dirs()
     config = {
@@ -1213,6 +1308,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     run_parser.add_argument("--only-queries", default=None, help="Comma-separated query ids to run.")
 
     subparsers.add_parser("refresh-citations", help="Reuse existing papers.jsonl and refresh Scholar citation cache only.")
+    subparsers.add_parser(
+        "refresh-semantic-scholar",
+        help="Fetch citation counts from Semantic Scholar's batch API and rebuild rankings.",
+    )
 
     fetch_parser = subparsers.add_parser("fetch-only", help="Fetch arXiv raw results only, without ranking or citation enrichment.")
     fetch_parser.add_argument("--years-back", type=int, default=None)
@@ -1268,6 +1367,11 @@ def main(argv: list[str]) -> int:
         if args.command == "refresh-citations":
             papers = refresh_citations_only()
             print(f"refreshed citations for {len(papers)} papers")
+            finish_run_status("done", stage="done", output_papers=len(papers))
+            return 0
+        if args.command == "refresh-semantic-scholar":
+            papers = refresh_semantic_scholar_citations_only()
+            print(f"refreshed Semantic Scholar citations for {len(papers)} papers")
             finish_run_status("done", stage="done", output_papers=len(papers))
             return 0
         if args.command == "rebuild-from-cache":
